@@ -47,15 +47,6 @@ void uart_init(USART_t usart, uint32_t baudrate, UART_Callback_t callback);
 void uart_send_blocking(USART_t usart,uint8_t data);
 
 /**
- * @brief Send an array of data over UART without blocking.
- * 
- * @param usart The USART module to use.
- * @param str Pointer to the array of data to send.
- * @param len Length of the data to send.
- */
-void uart_send_array_nonBlocking(USART_t usart,  uint8_t *str, uint16_t len);
-
-/**
  * @brief Send an array of data over UART using blocking method.
  * 
  * @param usart The USART module to use.
@@ -70,7 +61,7 @@ void uart_send_array_blocking(USART_t usart, uint8_t *data, uint16_t length);
  * @param usart The USART module to use.
  * @param data Null-terminated string to send.
  */
-void uart_send_string_blocking(USART_t usart, char *data);
+void uart_send_string_blocking(USART_t usart, const char *data);
 
 /**
  * @brief Get the current received data callback for the specified USART module.
