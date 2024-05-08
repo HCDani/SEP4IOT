@@ -259,7 +259,7 @@ void uart_send_array_blocking(USART_t usart, uint8_t *data, uint16_t length)
 
 
 
-void uart_send_string_blocking(USART_t usart, char *data){
+void uart_send_string_blocking(USART_t usart, const char *data){
     uart_send_array_blocking(usart, (uint8_t*)data, strlen(data));
 }
 

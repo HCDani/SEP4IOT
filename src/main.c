@@ -1,6 +1,3 @@
-#define CONFIG_KERNEL_UPTIME 1
-#define CONFIG_I2C_DRIVER_ENABLE 0
-#define CONFIG_KERNEL_SYSLOCK_HW_TIMER 2
 #include <avrtos\avrtos.h>
 #include "dht11.h"
 #include "light.h"
@@ -9,6 +6,7 @@
 #include "uart.h"
 #include "leds.h"
 #include "servo.h"
+#include "wifi.h"
 #include <util\delay.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -30,17 +28,29 @@ unsigned char humDec;
 uint16_t lightValue;
 uint8_t ledState;
 uint8_t servoAngle;
-char charBuffer[40];
+static const uint8_t key[] = {0x44,0xde,0xc5,0xcc,0xbd,0xf9,0xc2,0xec,0x53,0xbf,0xd3,0x87,0xdf,0x9f,0x47,0xef};
+char netBuffer[60];
+char netResponseBuffer[500];
 
 int main(){
-  display_init();  
   sei();
   z_avrtos_init();
+  wifi_init();
+  wifi_command_disable_echo();
+  wifi_command_join_AP("sj17c","sj17c_password");
+  k_sleep(K_SECONDS(2));
+  wifi_command("AT+CIPSNTPCFG=1,\"pool.ntp.org\"", 1);
   while (1){
     k_mutex_lock(&globalVariableMutex, K_FOREVER);
     display_int(lightValue);
     k_mutex_unlock(&globalVariableMutex);
-    k_sleep(K_SECONDS(1));
+    wifi_command_create_TCP_connection("mserver.nmprog.hu",80);
+    snprintf(netBuffer,60,"GET /iot/asd HTTP/1.0\r\n\r\n");
+    wifi_command_TCP_transmit((uint8_t *)netBuffer,strlen(netBuffer));
+    wifi_read_message_from_TCP_connection(netResponseBuffer,5);
+    wifi_command_close_TCP_connection();
+    uart_send_string_blocking(USART_0, netResponseBuffer);
+    k_sleep(K_SECONDS(11));
   }
   return 0;
 }
@@ -71,6 +81,8 @@ uint8_t Ldht11_getResult;
 }
 
 void thread_serial(void *p){
+  char charBuffer[40];
+
   uart_init(USART_0,115200,uart_0_callback);
   k_sleep(K_SECONDS(10));
   while(1){
@@ -88,9 +100,9 @@ void thread_serial(void *p){
       ledState = 1;
     }
 #endif
-    sprintf(&charBuffer,"Temp: %d.%d Hum: %d.%d Light: %d SA: %d LS: %d\n", tempInt, tempDec, humInt, humDec, lightValue, servoAngle, ledState);    
+    sprintf(charBuffer,"Temp: %d.%d Hum: %d.%d Light: %d SA: %d LS: %d\n", tempInt, tempDec, humInt, humDec, lightValue, servoAngle, ledState);
     k_mutex_unlock(&globalVariableMutex);
-    uart_send_string_blocking(USART_0, &charBuffer);
+    uart_send_string_blocking(USART_0, charBuffer);
     k_sleep(K_SECONDS(10));
   }
 }
