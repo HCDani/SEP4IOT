@@ -2,7 +2,6 @@
 #include "dht11.h"
 #include "light.h"
 #include "includes.h"
-#include "display.h"
 #include "uart.h"
 #include "leds.h"
 #include "servo.h"
@@ -10,7 +9,11 @@
 #include <util\delay.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <AESLib.h>
+#include <util/crc16.h>
 
+#define low(x)   ((x) & 0xFF)
+#define high(x)   (((x)>>8) & 0xFF)
 
 void thread_sensor(void *p);
 void thread_serial(void *p);
@@ -26,9 +29,14 @@ unsigned char tempDec;
 unsigned char humInt;
 unsigned char humDec;
 uint16_t lightValue;
+
 uint8_t ledState;
 uint8_t servoAngle;
+
+const char hex[] PROGMEM = "0123456789abcdef";
 static const uint8_t key[] = {0x44,0xde,0xc5,0xcc,0xbd,0xf9,0xc2,0xec,0x53,0xbf,0xd3,0x87,0xdf,0x9f,0x47,0xef};
+static uint8_t netData[16];
+
 char netBuffer[60];
 char netResponseBuffer[500];
 
@@ -41,11 +49,38 @@ int main(){
   k_sleep(K_SECONDS(2));
   wifi_command("AT+CIPSNTPCFG=1,\"pool.ntp.org\"", 1);
   while (1){
+    //Board Id
+    netData[0]=0;
+    netData[1]=1;
+    //Todo: timestamp comes here.
+    netData[2]=0;
+    netData[3]=0;
+    netData[4]=0;
+    netData[5]=0;
     k_mutex_lock(&globalVariableMutex, K_FOREVER);
-    display_int(lightValue);
+    netData[6]=humInt;
+    netData[7]=humDec;
+    netData[8]=tempInt;
+    netData[9]=tempDec;
+    netData[10]=high(lightValue);
+    netData[11]=low(lightValue);
     k_mutex_unlock(&globalVariableMutex);
+    netData[12]=0;
+    netData[13]=0;
+    uint16_t crcval = 0xffff;
+    for (uint8_t i = 0; i<14; i++) crcval = _crc16_update(crcval,netData[i]);
+    netData[14]=high(crcval);
+    netData[15]=low(crcval);
+    aes128_enc_single(key, netData);
     wifi_command_create_TCP_connection("mserver.nmprog.hu",80);
-    snprintf(netBuffer,60,"GET /iot/asd HTTP/1.0\r\n\r\n");
+    strcpy_P(netBuffer,PSTR("GET /iot/"));
+    char *nbout = netBuffer+strlen(netBuffer);
+    for (uint8_t i = 0; i<16; i++ , nbout+=2) {
+      nbout[0]=pgm_read_byte(&(hex[(netData[i]>>4) & 0xF]));
+      nbout[1]=pgm_read_byte(&(hex[netData[i] & 0xF]));
+    }
+    nbout[0]=0;
+    strcat_P(netBuffer,PSTR(" HTTP/1.0\r\n\r\n"));
     wifi_command_TCP_transmit((uint8_t *)netBuffer,strlen(netBuffer));
     wifi_read_message_from_TCP_connection(netResponseBuffer,5);
     wifi_command_close_TCP_connection();
@@ -83,7 +118,7 @@ uint8_t Ldht11_getResult;
 void thread_serial(void *p){
   char charBuffer[40];
 
-  uart_init(USART_0,115200,uart_0_callback);
+  uart_init(USART_0,250000,uart_0_callback);
   k_sleep(K_SECONDS(10));
   while(1){
     k_mutex_lock(&globalVariableMutex, K_FOREVER);
