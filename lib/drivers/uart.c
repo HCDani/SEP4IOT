@@ -14,27 +14,7 @@ static UART_Callback_t usart0_rx_callback = NULL;
 static UART_Callback_t usart1_rx_callback = NULL;
 static UART_Callback_t usart2_rx_callback = NULL;
 static UART_Callback_t usart3_rx_callback = NULL;
-UART_Callback_t uart_get_rx_callback(USART_t usart){
-    switch (usart)
-    {
-    case USART_0:
-        return usart0_rx_callback;
-        break;
-    case USART_1:
-        return usart1_rx_callback;
-        break;
-    case USART_2:
-        return usart2_rx_callback;
-        break;
-    case USART_3:
-        return usart3_rx_callback;
-        break;
-    default:
-    return 0;
-        break;
-    }
 
-}
 #ifndef WINDOWS_TEST
 // This is the ISR for USART0 Receive Complete
 #ifndef TARGET_TEST

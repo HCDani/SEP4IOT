@@ -15,6 +15,12 @@
 #define low(x)   ((x) & 0xFF)
 #define high(x)   (((x)>>8) & 0xFF)
 
+//This idea came from the following source: https://forum.arduino.cc/t/solved-split-uint-32-to-bytes/532751/9
+typedef union {
+  uint32_t v;
+  uint8_t as_bytes[4];
+} uint32_split_t, *uint32_split_p;
+
 void thread_sensor(void *p);
 void thread_serial(void *p);
 void thread_actuators(void *p);
@@ -47,16 +53,25 @@ int main(){
   wifi_command_disable_echo();
   wifi_command_join_AP("sj17c","sj17c_password");
   k_sleep(K_SECONDS(2));
-  wifi_command("AT+CIPSNTPCFG=1,\"pool.ntp.org\"", 1);
+  wifi_command("AT+CIPSNTPCFG=1,0,\"pool.ntp.org\"", 2);
+  uint32_t wifiTime=0;
+  for(uint8_t i=0;i<10&&wifiTime==0;i++){
+    k_sleep(K_SECONDS(1));
+    wifiTime=wifi_ntpTime();
+  }
+  sprintf(netResponseBuffer,"wifiTime: %lu\n",wifiTime);
+  uart_send_string_blocking(USART_0,netResponseBuffer);
+  k_time_set(wifiTime);
   while (1){
     //Board Id
     netData[0]=0;
     netData[1]=1;
-    //Todo: timestamp comes here.
-    netData[2]=0;
-    netData[3]=0;
-    netData[4]=0;
-    netData[5]=0;
+    uint32_split_t currTime;
+    currTime.v=k_time_get();
+    netData[2]=currTime.as_bytes[3];
+    netData[3]=currTime.as_bytes[2];
+    netData[4]=currTime.as_bytes[1];
+    netData[5]=currTime.as_bytes[0];
     k_mutex_lock(&globalVariableMutex, K_FOREVER);
     netData[6]=humInt;
     netData[7]=humDec;
