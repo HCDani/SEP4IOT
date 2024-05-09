@@ -63,11 +63,3 @@ void uart_send_array_blocking(USART_t usart, uint8_t *data, uint16_t length);
  */
 void uart_send_string_blocking(USART_t usart, const char *data);
 
-/**
- * @brief Get the current received data callback for the specified USART module.
- * 
- * @param usart The USART module.
- * @return UART_Callback_t The callback function currently in use.
- */
-UART_Callback_t uart_get_rx_callback(USART_t usart);
-
