@@ -47,9 +47,10 @@ char netBuffer[60];
 char netResponseBuffer[500];
 
 int main(){
+  uart_init(USART_0,250000,uart_0_callback);
+  wifi_init();
   sei();
   z_avrtos_init();
-  wifi_init();
   wifi_command_disable_echo();
   wifi_command_join_AP("sj17c","sj17c_password");
   k_sleep(K_SECONDS(2));
@@ -132,8 +133,6 @@ uint8_t Ldht11_getResult;
 
 void thread_serial(void *p){
   char charBuffer[40];
-
-  uart_init(USART_0,250000,uart_0_callback);
   k_sleep(K_SECONDS(10));
   while(1){
     k_mutex_lock(&globalVariableMutex, K_FOREVER);

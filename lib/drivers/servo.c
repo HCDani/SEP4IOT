@@ -31,7 +31,7 @@ void servo(uint8_t angle)
     // Calculate the number of timer ticks needed for the specified delay
     uint8_t num_ticks = ((F_CPU / 1000000UL) * delay_us) / 256;
 
-    for (uint16_t i = 0; i < 50; i++)//Wee assume it can get there in 1sec (50*20ms)
+    for (uint8_t i = 0; i < 100; i++)//Wee assume it can get there in 1sec (100*10ms)
     {
         // Set PA1 high
         PORT_SERVO |= (1 << P_SERVO);
@@ -45,7 +45,7 @@ void servo(uint8_t angle)
         // Set PA1 low
         PORT_SERVO &= ~(1 << P_SERVO);
         
-        _delay_ms(18); // thats dirty TODO, make this pricise.
+        k_msleep(10);
     }
 
    TCCR2A =TCCR2A_state ; //finished borrowing timer2. 
