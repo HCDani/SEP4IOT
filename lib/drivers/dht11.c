@@ -50,11 +50,11 @@ DHT11_ERROR_MESSAGE_t dht11_get(uint8_t* humidity_integer, uint8_t*  humidity_de
 
 	// pull up for 250ms
     DATA_PORT |= (1<<DATA_BIT);
-    _delay_ms(250);
+    k_msleep(250);
 
 	/* pull pin down for 18 milliseconds */
     DATA_PORT &= ~(1<<DATA_BIT);
-    _delay_ms(20);
+    k_msleep(20);
     
 	cli();
 	// pull up for 40us
@@ -91,7 +91,7 @@ DHT11_ERROR_MESSAGE_t dht11_get(uint8_t* humidity_integer, uint8_t*  humidity_de
 	sei();
 
 	// have to wait 100us*40 bit= 4ms, then push the bus to idle.
-	_delay_ms(4);
+	k_msleep(4);
 	// set port to output
     DATA_DDR |= (1 << DATA_BIT);
 	// pull up
