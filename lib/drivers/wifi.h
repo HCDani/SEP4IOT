@@ -100,10 +100,10 @@ WIFI_ERROR_MESSAGE_t wifi_command_get_ip_from_domain(const char *domain, char *i
  * @param port Port number to use for the connection.
  * @return WIFI_ERROR_MESSAGE_t Error message based on the response from the module.
  */
-WIFI_ERROR_MESSAGE_t wifi_command_create_TCP_connection(char *IP, uint16_t port);
+WIFI_ERROR_MESSAGE_t wifi_command_create_TCP_connection(const char *IP, uint16_t port);
 
 
-uint8_t wifi_read_message_from_TCP_connection(char *received_message_buffer,uint8_t timeOut_s);
+uint8_t wifi_read_message_from_TCP_connection(char *received_message_buffer,uint16_t maxResponseLength,uint8_t timeOut_s);
 
 
 /**
@@ -129,3 +129,5 @@ WIFI_ERROR_MESSAGE_t wifi_command_quit_AP();
 WIFI_ERROR_MESSAGE_t wifi_command_close_TCP_connection();
 
 uint32_t wifi_ntpTime();
+
+WIFI_ERROR_MESSAGE_t wifi_http_get(const char *server,uint16_t port,const char *request,char *response,uint16_t maxResponseLength);

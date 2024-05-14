@@ -30,14 +30,14 @@ K_THREAD_DEFINE(actuators, thread_actuators, 0x100, K_PRIO_DEFAULT, NULL, 'A');
 K_MUTEX_DEFINE(globalVariableMutex);
 void uart_0_callback(uint8_t receiver){};
 
-unsigned char tempInt;
-unsigned char tempDec;
-unsigned char humInt;
-unsigned char humDec;
-uint16_t lightValue;
+volatile unsigned char tempInt;
+volatile unsigned char tempDec;
+volatile unsigned char humInt;
+volatile unsigned char humDec;
+volatile uint16_t lightValue;
 
-uint8_t ledState;
-uint8_t servoAngle;
+volatile uint8_t ledState;
+volatile uint8_t servoAngle;
 
 const char hex[] PROGMEM = "0123456789abcdef";
 static const uint8_t key[] = {0x44,0xde,0xc5,0xcc,0xbd,0xf9,0xc2,0xec,0x53,0xbf,0xd3,0x87,0xdf,0x9f,0x47,0xef};
@@ -46,23 +46,32 @@ static uint8_t netData[16];
 char netBuffer[60];
 char netResponseBuffer[500];
 
+void fromHex(char *input, uint8_t *output) {
+    char *c;
+    while ( c[0]!=0 ) {
+        output[0] = (((c[0] & 0xF) + ((c[0] >> 6) | ((c[0] >> 3) & 0x8)))<<4)
+                    |((c[1] & 0xF) + ((c[1] >> 6) | ((c[1] >> 3) & 0x8)));
+        c+=2;
+        output+=1;
+    }
+}
+void toHex(uint8_t *input, char *output, uint8_t length) {
+    char *c=output;
+    for (uint8_t i = 0; i<length; i++ , c+=2) {
+        c[0]=pgm_read_byte(&(hex[(input[i]>>4) & 0xF]));
+        c[1]=pgm_read_byte(&(hex[input[i] & 0xF]));
+    }
+}
+
 int main(){
   uart_init(USART_0,250000,uart_0_callback);
   wifi_init();
   sei();
   z_avrtos_init();
   wifi_command_disable_echo();
-  wifi_command_join_AP("sj17c","sj17c_password");
+//  wifi_command_join_AP("sj17c","sj17c_password");
   k_sleep(K_SECONDS(2));
-  wifi_command("AT+CIPSNTPCFG=1,0,\"pool.ntp.org\"", 2);
-  uint32_t wifiTime=0;
-  for(uint8_t i=0;i<10&&wifiTime==0;i++){
-    k_sleep(K_SECONDS(1));
-    wifiTime=wifi_ntpTime();
-  }
-  sprintf(netResponseBuffer,"wifiTime: %lu\n",wifiTime);
-  uart_send_string_blocking(USART_0,netResponseBuffer);
-  k_time_set(wifiTime);
+  k_time_set(wifi_ntpTime());
   while (1){
     //Board Id
     netData[0]=0;
@@ -87,20 +96,35 @@ int main(){
     for (uint8_t i = 0; i<14; i++) crcval = _crc16_update(crcval,netData[i]);
     netData[14]=high(crcval);
     netData[15]=low(crcval);
+
+    memset(netBuffer,0,60);
+    toHex(netData,netBuffer,16);
+    uart_send_string_blocking(USART_0, netBuffer);
+    uart_send_blocking(USART_0,'\n');
     aes128_enc_single(key, netData);
-    wifi_command_create_TCP_connection("mserver.nmprog.hu",80);
+
+    memset(netBuffer,0,60);
     strcpy_P(netBuffer,PSTR("GET /iot/"));
-    char *nbout = netBuffer+strlen(netBuffer);
-    for (uint8_t i = 0; i<16; i++ , nbout+=2) {
-      nbout[0]=pgm_read_byte(&(hex[(netData[i]>>4) & 0xF]));
-      nbout[1]=pgm_read_byte(&(hex[netData[i] & 0xF]));
-    }
-    nbout[0]=0;
+    toHex(netData,netBuffer+strlen(netBuffer),16);
     strcat_P(netBuffer,PSTR(" HTTP/1.0\r\n\r\n"));
-    wifi_command_TCP_transmit((uint8_t *)netBuffer,strlen(netBuffer));
-    wifi_read_message_from_TCP_connection(netResponseBuffer,5);
-    wifi_command_close_TCP_connection();
-    uart_send_string_blocking(USART_0, netResponseBuffer);
+    uart_send_string_blocking(USART_0, netBuffer);
+    wifi_http_get("mserver.nmprog.hu",80,netBuffer,netResponseBuffer,500);
+    char * bodyStart =  strstr(netResponseBuffer, "\r\n\r\n");
+    if (bodyStart == NULL || strlen(bodyStart)<36 ) {
+      uart_send_string_blocking(USART_0, netResponseBuffer);
+    } else {
+      strncpy(netBuffer,bodyStart+4,32);
+      netBuffer[32]=0;
+      uart_send_string_blocking(USART_0, netBuffer);
+      uart_send_blocking(USART_0,'\n');
+
+      fromHex(netBuffer,netData);
+      aes128_dec_single(key, netData);
+      memset(netBuffer,0,60);
+      toHex(netData,netBuffer,16);
+      uart_send_string_blocking(USART_0, netBuffer);
+      uart_send_blocking(USART_0,'\n');
+    }
     k_sleep(K_SECONDS(11));
   }
   return 0;
@@ -125,6 +149,8 @@ uint8_t Ldht11_getResult;
       humDec = LhumDec;
       tempInt = LtempInt;
       tempDec = LtempDec;
+    } else {
+      uart_send_blocking(USART_0,'|');
     }
     k_mutex_unlock(&globalVariableMutex);
 		k_sleep(K_SECONDS(3));
