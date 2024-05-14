@@ -189,37 +189,25 @@ void uart_send_blocking(USART_t usart, uint8_t data)
     {
     case USART_0:
         // Wait for the transmit buffer to be empty
-        while (!(UCSR0A & (1 << UDRE0)))
-        {
-            // Do nothing - this is a blocking function
-        }
+        while (!(UCSR0A & (1 << UDRE0))) k_yield();
         // Write the data to the transmit buffer
         UDR0 = data;
         break;
     case USART_1:
         // Wait for the transmit buffer to be empty
-        while (!(UCSR1A & (1 << UDRE1)))
-        {
-            // Do nothing - this is a blocking function
-        }
+        while (!(UCSR1A & (1 << UDRE1))) k_yield();
         // Write the data to the transmit buffer
         UDR1 = data;
         break;
     case USART_2:
         // Wait for the transmit buffer to be empty
-        while (!(UCSR2A & (1 << UDRE2)))
-        {
-            // Do nothing - this is a blocking function
-        }
+        while (!(UCSR2A & (1 << UDRE2))) k_yield();
         // Write the data to the transmit buffer
         UDR2 = data;
         break;
     case USART_3:
         // Wait for the transmit buffer to be empty
-        while (!(UCSR3A & (1 << UDRE3)))
-        {
-            // Do nothing - this is a blocking function
-        }
+        while (!(UCSR3A & (1 << UDRE3))) k_yield();
         // Write the data to the transmit buffer
         UDR3 = data;
         break;

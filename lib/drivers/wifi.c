@@ -3,7 +3,7 @@
 #include "uart.h"
 #include <avrtos\avrtos.h>
 
-#define WIFI_RX_RINGSIZE 16
+#define WIFI_RX_RINGSIZE 32
 K_RING_DEFINE(wifi_rx_ring,WIFI_RX_RINGSIZE);
 K_SEM_DEFINE(wifi_rx_sem,0,1);
 
@@ -23,11 +23,19 @@ void static wifi_clear_rxring() {
 
 // Runs from ISR
 void static wifi_serial_callback(uint8_t received_byte) {
-    #ifdef WIFI_DEBUG
-//    uart_send_blocking(USART_0,'#');
-//    uart_send_blocking(USART_0,received_byte);
-    #endif
+//    #ifdef WIFI_DEBUG
+//      uart_send_blocking(USART_0,'#');
+//      uart_send_blocking(USART_0,received_byte);
+//    #endif
+#ifdef WIFI_DEBUG
+    if (k_ring_push(&wifi_rx_ring,received_byte)<0) {
+        uart_send_blocking(USART_0,'#');
+    } else {
+        uart_send_blocking(USART_0,'*');
+    }
+#else
     k_ring_push(&wifi_rx_ring,received_byte);
+#endif
     k_sem_give(&wifi_rx_sem);
     k_yield_from_isr();
 }
@@ -70,7 +78,11 @@ WIFI_ERROR_MESSAGE_t wifi_command_with_response(const char *command, char *respo
     uint8_t responseLength = 0;
     cmdstarttime=k_uptime_get();
     while (k_uptime_get()-cmdstarttime<=timeOut_s) {
-        if (k_sem_take(&wifi_rx_sem,K_MSEC(1000))==0) { // received chars
+        if (k_sem_take(&wifi_rx_sem,K_MSEC(100))==0) { // received chars
+            #ifdef WIFI_DEBUG
+                uart_send_blocking(USART_0,'@');
+            #endif
+
             const uint8_t key = irq_lock();
             char rxchar;
             while (k_ring_pop(&wifi_rx_ring,&rxchar)==0 && responseLength<maxResponseLength) {
@@ -86,7 +98,7 @@ WIFI_ERROR_MESSAGE_t wifi_command_with_response(const char *command, char *respo
     }
     #ifdef WIFI_DEBUG
        uart_send_string_blocking(USART_0, "WIFIRX: ");
-       uart_send_string_blocking(USART_0, (char *)response);
+       uart_send_string_blocking(USART_0, response);
        uart_send_string_blocking(USART_0, "\n");
     #endif
     WIFI_ERROR_MESSAGE_t error;
@@ -153,94 +165,134 @@ WIFI_ERROR_MESSAGE_t wifi_command_close_TCP_connection()
 
 
 
-#define IPD_PREFIX "+IPD,"
-#define PREFIX_LENGTH 5
-
-int static wifi_TCP_callback(char byte,char *received_message_buffer) {
-    static enum { IDLE, MATCH_PREFIX, LENGTH, DATA } state = IDLE;
-    static int length = 0, index = 0, prefix_index = 0;
-    int hasMessage = 0;
-
-    switch(state) {
-        case IDLE:
-            if(byte == IPD_PREFIX[0]) {
-                state = MATCH_PREFIX;
-                prefix_index = 1;
-            }
-            break;
-
-        case MATCH_PREFIX:
-            if(byte == IPD_PREFIX[prefix_index]) {
-                if(prefix_index == PREFIX_LENGTH - 1) {
-                    state = LENGTH;
-                } else {
-                    prefix_index++;
-                }
-            } else {
-                // not the expected character, reset to IDLE
-                state = IDLE;
-                prefix_index = 0;
-            }
-            break;
-
-        case LENGTH:
-            if(byte >= '0' && byte <= '9') {
-                length = length * 10 + (byte - '0');
-            } else if(byte == ':') {
-                state = DATA;
-                index = 0; // reset index to start storing data
-            } else {
-                // not the expected character, reset to IDLE
-                state = IDLE;
-                length = 0;
-            }
-            break;
-
-        case DATA:
-            if(index < length) {
-                received_message_buffer[index++] = byte;
-            }
-            if(index == length) {
-                // message is complete, null terminate the string
-                received_message_buffer[index] = 0;
-
-                // reset to IDLE
-                state = IDLE;
-                length = 0;
-                index = 0;
-
-                hasMessage = 1;
-            }
-            break;
-    }
-    return hasMessage;
-  
-}
-
-WIFI_ERROR_MESSAGE_t wifi_command_create_TCP_connection(char *IP, uint16_t port) {
+WIFI_ERROR_MESSAGE_t wifi_command_create_TCP_connection(const char *IP, uint16_t port) {
     char sendbuffer[128];
     sprintf_P(sendbuffer,PSTR("AT+CIPSTART=\"TCP\",\"%s\",%u"),IP,port);
     WIFI_ERROR_MESSAGE_t errorMessage = wifi_command(sendbuffer, 20);
     return errorMessage;
 }
 
-uint8_t wifi_read_message_from_TCP_connection(char *received_message_buffer,uint8_t timeOut_s) {
+#define IPD_PREFIX "+IPD,"
+#define IPD_PREFIX_LENGTH 5
+#define CLOSED_PREFIX "LOSED"
+#define CLOSED_PREFIX_LENGTH 5
+uint8_t wifi_read_message_from_TCP_connection(char *received_message_buffer,uint16_t maxResponseLength,uint8_t timeOut_s) {
     uint32_t cmdstarttime=k_uptime_get();
     char rxchar;
     uint8_t hasMessage=0;
+    enum { IDLE, MATCH_PREFIX, LENGTH, DATA } state = IDLE;
+    int length = 0, index = 0, prefix_index = 0;
 
-    while (k_uptime_get()-cmdstarttime<=timeOut_s) {
-        if (k_sem_take(&wifi_rx_sem,K_MSEC(1000))==0) { // received char
+    while (k_uptime_get()-cmdstarttime<=timeOut_s && hasMessage==0) {
+        if (k_sem_take(&wifi_rx_sem,K_MSEC(100))==0) { // received char
+            #ifdef WIFI_DEBUG
+                uart_send_blocking(USART_0,'@');
+            #endif
             const uint8_t key = irq_lock();
-            while (k_ring_pop(&wifi_rx_ring,&rxchar)==0) {
-                hasMessage = wifi_TCP_callback(rxchar,received_message_buffer);
+            while (k_ring_pop(&wifi_rx_ring,&rxchar)==0 && hasMessage==0) {
+                switch(state) {
+                    case IDLE:
+                        if(rxchar == IPD_PREFIX[0]) {
+                            state = MATCH_PREFIX;
+                            prefix_index = 1;
+                        }
+                        break;
+
+                    case MATCH_PREFIX:
+                        if(rxchar == IPD_PREFIX[prefix_index]) {
+                            if(prefix_index == IPD_PREFIX_LENGTH - 1) {
+                                state = LENGTH;
+                            } else {
+                                prefix_index++;
+                            }
+                        } else {
+                            // not the expected character, reset to IDLE
+                            state = IDLE;
+                            prefix_index = 0;
+                        }
+                        break;
+
+                    case LENGTH:
+                        if(rxchar >= '0' && rxchar <= '9') {
+                            length = length * 10 + (rxchar - '0');
+                        } else if(rxchar == ':') {
+                            state = DATA;
+                            index = 0; // reset index to start storing data
+                        } else {
+                            // not the expected character, reset to IDLE
+                            state = IDLE;
+                            length = 0;
+                        }
+                        break;
+
+                    case DATA:
+                        if(index < length) {
+                            if (index < maxResponseLength) {
+                                received_message_buffer[index] = rxchar;
+                            }
+                            index++;
+                        } else if(index == length) {
+                            // message is complete, null terminate the string
+                            if (index < maxResponseLength) {
+                                received_message_buffer[index] = 0;
+                            } else {
+                                received_message_buffer[maxResponseLength-1] = 0;
+                            }
+
+                            // reset to IDLE
+                            state = IDLE;
+                            length = 0;
+                            index = 0;
+
+                            hasMessage = 1;
+                        }
+                        break;
+                }
             }
             irq_unlock(key);
-            if (hasMessage ==1)
-                break;
         } 
     }
     return hasMessage;
+}
+
+uint8_t wifi_waitClose() {
+    uint32_t cmdstarttime=k_uptime_get();
+    char rxchar;
+    uint8_t closed = 0;
+    uint8_t state=0,prefix_index = 0;
+    while (k_uptime_get()-cmdstarttime<=2 && closed == 0) {
+        if (k_sem_take(&wifi_rx_sem,K_MSEC(100))==0) { // received char
+            const uint8_t key = irq_lock();
+            while (k_ring_pop(&wifi_rx_ring,&rxchar)==0 && closed == 0) {
+                #ifdef WIFI_DEBUG
+                    uart_send_blocking(USART_0,rxchar);
+                #endif
+                switch(state) {
+                    case 0:
+                        if(rxchar == CLOSED_PREFIX[0]) {
+                            state = 1;
+                            prefix_index = 1;
+                        }
+                        break;
+
+                    case 1:
+                        if(rxchar == CLOSED_PREFIX[prefix_index]) {
+                            if(prefix_index == CLOSED_PREFIX_LENGTH - 1) {
+                                closed = 1;
+                            } else {
+                                prefix_index++;
+                            }
+                        } else {
+                            // not the expected character, reset to IDLE
+                            state = 0;
+                            prefix_index = 0;
+                        }
+                }
+            }
+            irq_unlock(key);
+        }
+    }
+    return closed;
 }
 
 WIFI_ERROR_MESSAGE_t wifi_command_TCP_transmit(uint8_t * data, uint16_t length){
@@ -256,7 +308,7 @@ WIFI_ERROR_MESSAGE_t wifi_command_TCP_transmit(uint8_t * data, uint16_t length){
     return WIFI_OK;
 }
 //This is a ported and fixed version of https://github.com/jandrassy/WiFiEspAT/issues/8#issuecomment-927350290
-uint32_t wifi_ntpTime() {
+uint32_t wifi_ntpTime_fetch() {
     char sendbuffer[128];
     // Output of AT+CIPSNTPTIME? is +CIPSNTPTIME:Sun Sep 26 13:24:51 2021
     strcpy(sendbuffer, "AT+CIPSNTPTIME?");
@@ -358,4 +410,24 @@ uint32_t wifi_ntpTime() {
   // Formula from https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap04.html#tag_04_15
   unsigned long res = ss + mm*60 + hh*3600 + yday*86400 + (y-70)*31536000 + ((y-69)/4)*86400 - ((y-1)/100)*86400 + ((y+299)/400)*86400;
   return res;    
+}
+uint32_t wifi_ntpTime() {
+  wifi_command("AT+CIPSNTPCFG=1,0,\"pool.ntp.org\"", 2);
+  uint32_t wifiTime=0;
+  for(uint8_t i=0; i<10 && wifiTime==0 ;i++){
+    k_sleep(K_SECONDS(1));
+    wifiTime=wifi_ntpTime_fetch();
+  }
+  return wifiTime;
+}
+
+WIFI_ERROR_MESSAGE_t wifi_http_get(const char *server,uint16_t port,const char *request,char *response,uint16_t maxResponseLength) {
+    WIFI_ERROR_MESSAGE_t error = wifi_command_create_TCP_connection(server,port);
+    if (error == WIFI_OK) {
+        wifi_command_TCP_transmit((uint8_t *)request,strlen(request));
+        if (wifi_read_message_from_TCP_connection(response,maxResponseLength,5)==1 && wifi_waitClose() == 0 ) {
+            wifi_command_close_TCP_connection();
+        }
+    }
+    return error;
 }
