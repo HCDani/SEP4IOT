@@ -7,31 +7,12 @@
 #define DATA_DDR DDRL
 #define DATA_PORT PORTL
 
-//#define DATA_BIT PD1
-//#define DATA_PIN PIND
-//#define DATA_DDR DDRD
-//#define DATA_PORT PORTD
-
-//VCC
-//#define VCC_BIT PD0
-//#define VCC_DDR DDRD
-//#define VCC_PORT PORTD
-
-//GND
-//#define GND_BIT PD2
-//#define GND_DDR DDRD
-//#define GND_PORT PORTD
-
-
 void dht11_init() {
+	// set port to output
+    DATA_DDR |= (1 << DATA_BIT);
 
-//Vcc
-//VCC_DDR|=(1<<VCC_BIT);
-//VCC_PORT|=(1<<VCC_BIT);
-
-//GND
-//GND_DDR|=(1<<GND_BIT);
-//GND_PORT&=~(1<<GND_BIT);
+	// pull up
+    DATA_PORT |= (1<<DATA_BIT);
 }
 
 
@@ -48,18 +29,14 @@ DHT11_ERROR_MESSAGE_t dht11_get(uint8_t* humidity_integer, uint8_t*  humidity_de
 	// set port to output
     DATA_DDR |= (1 << DATA_BIT);
 
-	// pull up for 250ms
-    DATA_PORT |= (1<<DATA_BIT);
-    k_msleep(250);
-
 	/* pull pin down for 18 milliseconds */
     DATA_PORT &= ~(1<<DATA_BIT);
     k_msleep(20);
     
 	cli();
-	// pull up for 40us
+	// pull up for 15us
     DATA_PORT |= (1<<DATA_BIT);
-    _delay_us(40);
+    _delay_us(15);
 
 	/* prepare to read the pin */
     DATA_DDR &= ~(1<<DATA_BIT);
@@ -83,7 +60,7 @@ DHT11_ERROR_MESSAGE_t dht11_get(uint8_t* humidity_integer, uint8_t*  humidity_de
 		{
 			/* shove each bit into the storage bytes */
 			data[j / 8] <<= 1;
-			if ( counter > 26 )
+			if ( counter > 36 )
 				data[j / 8] |= 1;
 			j++;
 		}
@@ -113,7 +90,7 @@ DHT11_ERROR_MESSAGE_t dht11_get(uint8_t* humidity_integer, uint8_t*  humidity_de
         if (temperature_decimal!=NULL)
             *temperature_decimal = data[3];
         return DHT11_OK;
-	}else  {
+	} else {
         *humidity_integer=*humidity_decimal=*temperature_integer=*temperature_decimal =0;
         return DHT11_FAIL;
 	}

@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <AESLib.h>
 #include <util/crc16.h>
+#include "convert.h"
 
 #define low(x)   ((x) & 0xFF)
 #define high(x)   (((x)>>8) & 0xFF)
@@ -39,33 +40,19 @@ volatile uint16_t lightValue;
 volatile uint8_t ledState;
 volatile uint8_t servoAngle;
 
-const char hex[] PROGMEM = "0123456789abcdef";
 static const uint8_t key[] = {0x44,0xde,0xc5,0xcc,0xbd,0xf9,0xc2,0xec,0x53,0xbf,0xd3,0x87,0xdf,0x9f,0x47,0xef};
 static uint8_t netData[16];
 
 char netBuffer[60];
 char netResponseBuffer[500];
 
-void fromHex(char *input, uint8_t *output) {
-    char *c;
-    while ( c[0]!=0 ) {
-        output[0] = (((c[0] & 0xF) + ((c[0] >> 6) | ((c[0] >> 3) & 0x8)))<<4)
-                    |((c[1] & 0xF) + ((c[1] >> 6) | ((c[1] >> 3) & 0x8)));
-        c+=2;
-        output+=1;
-    }
-}
-void toHex(uint8_t *input, char *output, uint8_t length) {
-    char *c=output;
-    for (uint8_t i = 0; i<length; i++ , c+=2) {
-        c[0]=pgm_read_byte(&(hex[(input[i]>>4) & 0xF]));
-        c[1]=pgm_read_byte(&(hex[input[i] & 0xF]));
-    }
-}
-
 int main(){
   uart_init(USART_0,250000,uart_0_callback);
   wifi_init();
+  light_init();
+  dht11_init();
+  leds_init();
+
   sei();
   z_avrtos_init();
   wifi_command_disable_echo();
@@ -92,8 +79,7 @@ int main(){
     k_mutex_unlock(&globalVariableMutex);
     netData[12]=0;
     netData[13]=0;
-    uint16_t crcval = 0xffff;
-    for (uint8_t i = 0; i<14; i++) crcval = _crc16_update(crcval,netData[i]);
+    uint16_t crcval = calcCRC16(netData, 0, 14);
     netData[14]=high(crcval);
     netData[15]=low(crcval);
 
@@ -120,6 +106,8 @@ int main(){
 
       fromHex(netBuffer,netData);
       aes128_dec_single(key, netData);
+      uint16_t server_crcval = calcCRC16(netData, 0, 14);
+
       memset(netBuffer,0,60);
       toHex(netData,netBuffer,16);
       uart_send_string_blocking(USART_0, netBuffer);
@@ -137,8 +125,6 @@ unsigned char LhumInt;
 unsigned char LhumDec;
 uint16_t LlightValue;
 uint8_t Ldht11_getResult;
-  light_init();
-  dht11_init();
 	while (1) {
     LlightValue = light_read();
     Ldht11_getResult = dht11_get(&LhumInt, &LhumDec, &LtempInt, &LtempDec);
@@ -169,9 +155,9 @@ void thread_serial(void *p){
     } else if (tempInt <= 27){
       servoAngle = 0;
     }
-    if(lightValue < 600){
+    if(lightValue > 400){
       ledState = 0;
-    }else if (lightValue > 700){
+    }else if (lightValue < 300){
       ledState = 1;
     }
 #endif
@@ -184,7 +170,6 @@ void thread_serial(void *p){
 void thread_actuators(void *p){
   uint8_t LledState;
   uint8_t LservoAngle;
-  leds_init();
   while(1){
     k_mutex_lock(&globalVariableMutex, K_FOREVER);
     LledState = ledState;
