@@ -17,7 +17,8 @@ static UART_Callback_t usart3_rx_callback = NULL;
 
 #ifndef WINDOWS_TEST
 // This is the ISR for USART0 Receive Complete
-#ifndef TARGET_TEST
+//
+#ifndef PIO_UNIT_TESTING
 ISR(USART0_RX_vect)
 {
     // If a valid callback has been set, call it
