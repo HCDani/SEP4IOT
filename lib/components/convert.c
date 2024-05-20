@@ -22,4 +22,5 @@ void toHex(uint8_t *input, char *output, uint8_t length) {
 uint16_t calcCRC16(const uint8_t *input, uint8_t start, uint8_t length) {
     uint16_t crcval = 0xffff;
     for (uint8_t i = start; i<length; i++) crcval = _crc16_update(crcval,input[i]);
+    return crcval;
 }
