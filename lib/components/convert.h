@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <avr/pgmspace.h>
+#include <util/crc16.h>
 
 void fromHex(char *input, uint8_t *output);
 void toHex(uint8_t *input, char *output, uint8_t length);
