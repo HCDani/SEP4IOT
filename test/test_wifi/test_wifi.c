@@ -25,7 +25,7 @@ void test_wifi_read(void){
   wifi_init();
 
   // Test sending an AT command and receiving a response
-  result = wifi_command_with_response("AT", response, sizeof(response), 10);
+  result = result = wifi_command_AT();
   TEST_ASSERT_EQUAL(WIFI_OK, result);
   TEST_ASSERT_NOT_NULL(strstr(response, "OK"));   
 

@@ -321,7 +321,7 @@ void uart_send_array_nonBlocking(USART_t usart, uint8_t *str, uint16_t len)
 
 #ifndef WINDOWS_TEST
 
-#ifndef TARGET_TEST
+#ifndef PIO_UNIT_TESTING 
 
 ISR(USART0_UDRE_vect)
 {
