@@ -17,27 +17,20 @@ void tearDown(void) {
 }
 
 void test_wifi_read(void){
-  
- char response[128];
   WIFI_ERROR_MESSAGE_t result;
-
-  // Initialize WiFi
+// Initialize WiFi
   wifi_init();
-
-  // Test sending an AT command and receiving a response
-  result = result = wifi_command_AT();
+// Test sending an AT command and receiving a response
+  result = wifi_command_AT();
   TEST_ASSERT_EQUAL(WIFI_OK, result);
-  TEST_ASSERT_NOT_NULL(strstr(response, "OK"));   
-
 }
-
 
 int runUnityTests(void) {
   sei();
   z_avrtos_init();
   UNITY_BEGIN();
   RUN_TEST(test_wifi_read);
-  
+ 
 return UNITY_END();
 }
 
