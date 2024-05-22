@@ -24,10 +24,8 @@ typedef union {
 
 void thread_sensor(void *p);
 void thread_serial(void *p);
-void thread_actuators(void *p);
 K_THREAD_DEFINE(sensor, thread_sensor, 0x100, K_PRIO_DEFAULT, NULL, 'R');
 K_THREAD_DEFINE(serial, thread_serial, 0x100, K_PRIO_DEFAULT, NULL, 'S');
-K_THREAD_DEFINE(actuators, thread_actuators, 0x100, K_PRIO_DEFAULT, NULL, 'A');
 K_MUTEX_DEFINE(globalVariableMutex);
 void uart_0_callback(uint8_t receiver){};
 
@@ -107,6 +105,29 @@ int main(){
       fromHex(netBuffer,netData);
       aes128_dec_single(key, netData);
       uint16_t server_crcval = calcCRC16(netData, 0, 14);
+      uint32_split_t serverTime;
+      serverTime.as_bytes[3]=netData[2];
+      serverTime.as_bytes[2]=netData[3];
+      serverTime.as_bytes[1]=netData[4];
+      serverTime.as_bytes[0]=netData[5];
+      if (netData[14]==high(server_crcval) && netData[15]==low(server_crcval) // has valid crc
+        && netData[0]==0x80 && netData[1]==0x01 // has valid boardid and direction
+        && serverTime.v+10>currTime.v ) { // server time have to bigger then our time-10 seconds
+        // considering the message valid
+        if (netData[6]==1) { // change actuators command
+          k_mutex_lock(&globalVariableMutex, K_FOREVER);
+          ledState = netData[7];
+          servoAngle = netData[8];
+          k_mutex_unlock(&globalVariableMutex);
+            // led,servo
+          if(netData[7] == 0){
+            leds_turnOff(1);
+          } else{
+            leds_turnOn(1);
+          }
+          servo(netData[8]==1?180:0);
+        }
+      }
 
       memset(netBuffer,0,120);
       toHex(netData,netBuffer,16);
@@ -165,22 +186,5 @@ void thread_serial(void *p){
     k_mutex_unlock(&globalVariableMutex);
     uart_send_string_blocking(USART_0, charBuffer);
     k_sleep(K_SECONDS(10));
-  }
-}
-void thread_actuators(void *p){
-  uint8_t LledState;
-  uint8_t LservoAngle;
-  while(1){
-    k_mutex_lock(&globalVariableMutex, K_FOREVER);
-    LledState = ledState;
-    LservoAngle = servoAngle;
-    k_mutex_unlock(&globalVariableMutex);
-    if(LledState == 0){
-      leds_turnOff(1);
-    } else{
-      leds_turnOn(1);
-    }
-    servo(LservoAngle);
-    k_sleep(K_SECONDS(3));
   }
 }
