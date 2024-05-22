@@ -43,7 +43,7 @@ volatile uint8_t servoAngle;
 static const uint8_t key[] = {0x44,0xde,0xc5,0xcc,0xbd,0xf9,0xc2,0xec,0x53,0xbf,0xd3,0x87,0xdf,0x9f,0x47,0xef};
 static uint8_t netData[16];
 
-char netBuffer[60];
+char netBuffer[120];
 char netResponseBuffer[500];
 
 int main(){
@@ -83,18 +83,18 @@ int main(){
     netData[14]=high(crcval);
     netData[15]=low(crcval);
 
-    memset(netBuffer,0,60);
+    memset(netBuffer,0,120);
     toHex(netData,netBuffer,16);
     uart_send_string_blocking(USART_0, netBuffer);
     uart_send_blocking(USART_0,'\n');
     aes128_enc_single(key, netData);
 
-    memset(netBuffer,0,60);
-    strcpy_P(netBuffer,PSTR("GET /iot/"));
+    memset(netBuffer,0,120);
+    strcpy_P(netBuffer,PSTR("GET /api/Board/"));
     toHex(netData,netBuffer+strlen(netBuffer),16);
-    strcat_P(netBuffer,PSTR(" HTTP/1.0\r\n\r\n"));
+    strcat_P(netBuffer,PSTR(" HTTP/1.0\r\nHost: sep4backendapp.azurewebsites.net\r\n\r\n"));
     uart_send_string_blocking(USART_0, netBuffer);
-    wifi_http_get("mserver.nmprog.hu",80,netBuffer,netResponseBuffer,500);
+    wifi_http_get("sep4backendapp.azurewebsites.net",80,netBuffer,netResponseBuffer,500);
     char * bodyStart =  strstr(netResponseBuffer, "\r\n\r\n");
     if (bodyStart == NULL || strlen(bodyStart)<36 ) {
       uart_send_string_blocking(USART_0, netResponseBuffer);
@@ -108,7 +108,7 @@ int main(){
       aes128_dec_single(key, netData);
       uint16_t server_crcval = calcCRC16(netData, 0, 14);
 
-      memset(netBuffer,0,60);
+      memset(netBuffer,0,120);
       toHex(netData,netBuffer,16);
       uart_send_string_blocking(USART_0, netBuffer);
       uart_send_blocking(USART_0,'\n');
