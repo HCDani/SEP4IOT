@@ -34,6 +34,7 @@ void test_dht_read(void){
 void test_light_read(void){
   light_init();
   uint16_t lightValue = light_read();
+  printf("Light Sensor Value: %u\n", lightValue);  // Debugging output
   TEST_ASSERT_UINT16_WITHIN (399, 400, lightValue);
 }
 
