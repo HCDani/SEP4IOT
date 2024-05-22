@@ -9,6 +9,9 @@
 //Clean the project before testing. Sometimes it doesn't recognizes the test cases.
 
 void setUp(void) {
+
+  // Initialize WiFi
+   wifi_init();
   // set stuff up here
 }
 
@@ -18,19 +21,15 @@ void tearDown(void) {
 
 void test_wifi_read(void){
   WIFI_ERROR_MESSAGE_t result;
-// Initialize WiFi
-  wifi_init();
+
+  
 // Test sending an AT command and receiving a response
  result = wifi_command_AT();
   TEST_ASSERT_EQUAL(WIFI_OK, result);
-  //I need to add this method: uint32_t wifi_ntpTime();
-  //I need to add this method:http_get
 }
-//add
-void test_wifi_ntp_time(void) {
-  // Initialize WiFi
-  wifi_init();
 
+void test_wifi_ntp_time(void) {
+  
   // Get the current time from NTP
   uint32_t ntp_time = wifi_ntpTime();
   printf("NTP Time: %u\n", ntp_time);  // Debugging output
@@ -38,9 +37,7 @@ void test_wifi_ntp_time(void) {
 }
 
 void test_wifi_http_get(void) {
-  // Initialize WiFi
-  wifi_init();
-
+  
   // Perform an HTTP GET request
   char response[256];
   const char *request = "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n";
@@ -63,7 +60,9 @@ return UNITY_END();
 int main(void) {
   return runUnityTests();
 }
+
 void setup() {
+
   // Wait ~2 seconds before the Unity test runner
   // establishes connection with a board Serial interface
   k_sleep(K_SECONDS(2));
