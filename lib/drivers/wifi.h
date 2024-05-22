@@ -8,14 +8,17 @@
  * @copyright Copyright (c) 2023
  * 
  */
+
 #pragma once
 #include <stdint.h>
 #include "uart.h"
+
 
 /**
  * @brief Define which USART module is used for WiFi communication.
  * 
  */
+
 #define USART_WIFI USART_2
 
 /**
@@ -131,3 +134,4 @@ WIFI_ERROR_MESSAGE_t wifi_command_close_TCP_connection();
 uint32_t wifi_ntpTime();
 
 WIFI_ERROR_MESSAGE_t wifi_http_get(const char *server,uint16_t port,const char *request,char *response,uint16_t maxResponseLength);
+
