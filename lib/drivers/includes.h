@@ -6,7 +6,7 @@
 #include <util/delay.h>
 #endif
 
-#include <avrtos\kernel.h>
+#include <avrtos/kernel.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>

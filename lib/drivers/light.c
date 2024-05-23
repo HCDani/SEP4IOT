@@ -11,7 +11,7 @@
 
 #include "light.h"
 #include "includes.h"
-#include <avrtos\kernel.h>
+#include <avrtos/kernel.h>
 /**
  * @brief Initialize ADC for photoresistor
  *
