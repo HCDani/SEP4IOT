@@ -3,14 +3,16 @@
 const char hex[] PROGMEM = "0123456789abcdef";
 
 void fromHex(char *input, uint8_t *output) {
-    char *c;
-    while ( c[0]!=0 ) {
-        output[0] = (((c[0] & 0xF) + ((c[0] >> 6) | ((c[0] >> 3) & 0x8)))<<4)
-                    |((c[1] & 0xF) + ((c[1] >> 6) | ((c[1] >> 3) & 0x8)));
-        c+=2;
-        output+=1;
+    int i,ci = 0;
+    while ( input[ci]!=0 ) {
+        uint8_t nib0 = (input[ci] & 0xF) + ((input[ci] >> 6) | ((input[ci] >> 3) & 0x8));
+        uint8_t nib1 = (input[ci+1] & 0xF) + ((input[ci+1] >> 6) | ((input[ci+1] >> 3) & 0x8));
+        output[i] = (nib0 << 4) | nib1;
+        ci+=2;
+        i++;
     }
 }
+
 void toHex(uint8_t *input, char *output, uint8_t length) {
     char *c=output;
     for (uint8_t i = 0; i<length; i++ , c+=2) {

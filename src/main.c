@@ -24,10 +24,8 @@ typedef union {
 
 void thread_sensor(void *p);
 void thread_serial(void *p);
-void thread_actuators(void *p);
 K_THREAD_DEFINE(sensor, thread_sensor, 0x100, K_PRIO_DEFAULT, NULL, 'R');
 K_THREAD_DEFINE(serial, thread_serial, 0x100, K_PRIO_DEFAULT, NULL, 'S');
-K_THREAD_DEFINE(actuators, thread_actuators, 0x100, K_PRIO_DEFAULT, NULL, 'A');
 K_MUTEX_DEFINE(globalVariableMutex);
 void uart_0_callback(uint8_t receiver){};
 
@@ -43,7 +41,7 @@ volatile uint8_t servoAngle;
 static const uint8_t key[] = {0x44,0xde,0xc5,0xcc,0xbd,0xf9,0xc2,0xec,0x53,0xbf,0xd3,0x87,0xdf,0x9f,0x47,0xef};
 static uint8_t netData[16];
 
-char netBuffer[60];
+char netBuffer[120];
 char netResponseBuffer[500];
 
 int main(){
@@ -83,18 +81,18 @@ int main(){
     netData[14]=high(crcval);
     netData[15]=low(crcval);
 
-    memset(netBuffer,0,60);
+    memset(netBuffer,0,120);
     toHex(netData,netBuffer,16);
     uart_send_string_blocking(USART_0, netBuffer);
     uart_send_blocking(USART_0,'\n');
     aes128_enc_single(key, netData);
 
-    memset(netBuffer,0,60);
-    strcpy_P(netBuffer,PSTR("GET /iot/"));
+    memset(netBuffer,0,120);
+    strcpy_P(netBuffer,PSTR("GET /api/Board/"));
     toHex(netData,netBuffer+strlen(netBuffer),16);
-    strcat_P(netBuffer,PSTR(" HTTP/1.0\r\n\r\n"));
+    strcat_P(netBuffer,PSTR(" HTTP/1.0\r\nHost: sep4backendapp.azurewebsites.net\r\n\r\n"));
     uart_send_string_blocking(USART_0, netBuffer);
-    wifi_http_get("mserver.nmprog.hu",80,netBuffer,netResponseBuffer,500);
+    wifi_http_get("sep4backendapp.azurewebsites.net",80,netBuffer,netResponseBuffer,500);
     char * bodyStart =  strstr(netResponseBuffer, "\r\n\r\n");
     if (bodyStart == NULL || strlen(bodyStart)<36 ) {
       uart_send_string_blocking(USART_0, netResponseBuffer);
@@ -107,8 +105,31 @@ int main(){
       fromHex(netBuffer,netData);
       aes128_dec_single(key, netData);
       uint16_t server_crcval = calcCRC16(netData, 0, 14);
+      uint32_split_t serverTime;
+      serverTime.as_bytes[3]=netData[2];
+      serverTime.as_bytes[2]=netData[3];
+      serverTime.as_bytes[1]=netData[4];
+      serverTime.as_bytes[0]=netData[5];
+      if (netData[14]==high(server_crcval) && netData[15]==low(server_crcval) // has valid crc
+        && netData[0]==0x80 && netData[1]==0x01 // has valid boardid and direction
+        && serverTime.v+10>currTime.v ) { // server time have to bigger then our time-10 seconds
+        // considering the message valid
+        if (netData[6]==1) { // change actuators command
+          k_mutex_lock(&globalVariableMutex, K_FOREVER);
+          ledState = netData[7];
+          servoAngle = netData[8];
+          k_mutex_unlock(&globalVariableMutex);
+            // led,servo
+          if(netData[7] == 0){
+            leds_turnOff(1);
+          } else{
+            leds_turnOn(1);
+          }
+          servo(netData[8]==1?180:0);
+        }
+      }
 
-      memset(netBuffer,0,60);
+      memset(netBuffer,0,120);
       toHex(netData,netBuffer,16);
       uart_send_string_blocking(USART_0, netBuffer);
       uart_send_blocking(USART_0,'\n');
@@ -165,22 +186,5 @@ void thread_serial(void *p){
     k_mutex_unlock(&globalVariableMutex);
     uart_send_string_blocking(USART_0, charBuffer);
     k_sleep(K_SECONDS(10));
-  }
-}
-void thread_actuators(void *p){
-  uint8_t LledState;
-  uint8_t LservoAngle;
-  while(1){
-    k_mutex_lock(&globalVariableMutex, K_FOREVER);
-    LledState = ledState;
-    LservoAngle = servoAngle;
-    k_mutex_unlock(&globalVariableMutex);
-    if(LledState == 0){
-      leds_turnOff(1);
-    } else{
-      leds_turnOn(1);
-    }
-    servo(LservoAngle);
-    k_sleep(K_SECONDS(3));
   }
 }
