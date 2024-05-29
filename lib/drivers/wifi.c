@@ -3,7 +3,7 @@
 #include "uart.h"
 #include <avrtos/avrtos.h>
 
-#define WIFI_RX_RINGSIZE 32
+#define WIFI_RX_RINGSIZE 64
 K_RING_DEFINE(wifi_rx_ring,WIFI_RX_RINGSIZE);
 K_SEM_DEFINE(wifi_rx_sem,0,1);
 
