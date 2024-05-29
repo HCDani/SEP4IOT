@@ -32,7 +32,7 @@ void test_wifi_ntp_time(void) {
   
   // Get the current time from NTP
   uint32_t ntp_time = wifi_ntpTime();
-  printf("NTP Time: %u\n", ntp_time);  // Debugging output
+  printf("NTP Time: %lu\n", ntp_time);  // Debugging output
   TEST_ASSERT_NOT_EQUAL(0, ntp_time);  // Assuming 0 is an invalid time
 }
 
