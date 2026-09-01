@@ -4,9 +4,8 @@ Firmware for a greenhouse monitoring node built on an Arduino Mega 2560. It samp
 temperature, humidity and light, sends readings to a cloud backend every eleven seconds,
 and applies actuator commands the server sends back in reply.
 
-This repository is the embedded half of a 4th-semester project. I was tech lead of the
-seven-person team and wrote this firmware; the backend and web dashboard live in
-separate repositories.
+This repository is the embedded half of a 4th-semester project. I was tech lead and product owner of the seven-person team and wrote this firmware; 
+the backend and web dashboard live in separate repositories.
 
 ## What the node does
 
